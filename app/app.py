@@ -2,12 +2,12 @@ import os
 import ee
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
-#from flask_cors import CORS # Import à ajouter
+from flask_cors import CORS # Import à ajouter
 
 load_dotenv()
 
 app = Flask(__name__)
-#CORS(app) # Activer CORS pour toutes les routes
+CORS(app) # Activer CORS pour toutes les routes
 # Initialisation GEE (déjà testée)
 SERVICE_ACCOUNT = os.getenv('GEE_SERVICE_ACCOUNT')
 KEY_FILE = os.getenv('GEE_JSON_KEY_PATH')
@@ -53,4 +53,6 @@ def get_ndvi_tile():
     return jsonify({'tile_url': map_id['tile_fetcher'].url_format})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Render définit automatiquement une variable PORT
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

@@ -1,0 +1,10 @@
+earthengine-api
+google-auth
+flask
+flask-cors
+python-dotenv
+pandas
+numpy
+folium
+requests
+gunicorn
