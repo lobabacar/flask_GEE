@@ -6,14 +6,18 @@ import json
 main = Blueprint("main", __name__)
 
 def init_gee():
-
     service_account = os.getenv("GEE_SERVICE_ACCOUNT")
     private_key_json = os.getenv("GEE_PRIVATE_KEY_JSON")
 
-    key_data = json.loads(private_key_json)
+    if not service_account:
+        raise RuntimeError("GEE_SERVICE_ACCOUNT manquant")
+    if not private_key_json:
+        raise RuntimeError("GEE_PRIVATE_KEY_JSON manquant")
 
-    credentials = ee.ServiceAccountCredentials(service_account, key_data=key_data)
-
+    credentials = ee.ServiceAccountCredentials(
+        service_account,
+        key_data=private_key_json
+    )
     ee.Initialize(credentials)
 
 
