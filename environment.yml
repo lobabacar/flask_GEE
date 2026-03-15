@@ -1,0 +1,17 @@
+name: flask-earthengine
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - earthengine-api
+    - google-auth
+    - flask
+    - flask-cors
+    - python-dotenv
+    - pandas
+    - numpy
+    - folium
+    - requests
