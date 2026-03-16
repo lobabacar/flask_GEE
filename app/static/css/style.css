@@ -49,9 +49,10 @@ html, body {
     height: 100vh;
 }
 
+/* Légende déplacée plus bas pour ne pas coller aux écritures */
 #legend {
     position: absolute;
-    bottom: 20px;
+    top: 300px;
     left: 20px;
     background: rgba(255,255,255,0.95);
     padding: 12px;
@@ -81,10 +82,13 @@ html, body {
     border: 1px solid #ccc;
 }
 
+/* On enlève l'espace inutile sous le graphique */
 .chart-wrapper {
     position: relative;
     width: 100%;
-    height: 280px;
+    height: 220px;
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 .loading {
@@ -109,12 +113,12 @@ html, body {
     }
 
     #legend {
-        bottom: 10px;
+        top: 260px;
         left: 10px;
         font-size: 12px;
     }
 
     .chart-wrapper {
-        height: 240px;
+        height: 200px;
     }
 }
