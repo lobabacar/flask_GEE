@@ -77,6 +77,7 @@
                     <div><span style="background:#00ff00"></span> Végétation moyenne</div>
                     <div><span style="background:#006400"></span> Végétation dense</div>
             </div>
+            
 
             
             <div class="card dashboard-card mb-3">
@@ -99,6 +100,14 @@
                             <canvas id="ndviChart"></canvas>
                         </div>
                     </div>
+            </div>
+            <div class="card dashboard-card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Exports</h5>
+                    <button id="exportCsvBtn" class="btn btn-outline-light w-100 mb-2">Exporter la série en CSV</button>
+                    <button id="exportGeojsonBtn" class="btn btn-outline-light w-100 mb-2">Exporter la zone en GeoJSON</button>
+                    <button id="exportChartBtn" class="btn btn-outline-light w-100">Exporter le graphique en PNG</button>
+                </div>
             </div>
         </main>
     </div>

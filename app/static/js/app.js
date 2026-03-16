@@ -1,3 +1,4 @@
+let latestTimeSeries = [];
 let ndviChart = null;
 
 const osmLayer = new ol.layer.Tile({
@@ -248,6 +249,7 @@ async function loadNDVITimeSeries() {
 
         const labels = data.series.map(item => item.date);
         const values = data.series.map(item => item.mean_ndvi);
+        latestTimeSeries = data.series;
 
         if (ndviChart) {
             ndviChart.destroy();
@@ -311,6 +313,79 @@ async function loadNDVITimeSeries() {
         setStatus("Erreur réseau ou serveur pour le graphique.", "error");
     }
 }
+function downloadFile(content, fileName, contentType) {
+    const blob = new Blob([content], { type: contentType });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    URL.revokeObjectURL(url);
+}
+
+function exportTimeSeriesCSV() {
+    if (!latestTimeSeries || latestTimeSeries.length === 0) {
+        setStatus("Aucune série temporelle à exporter.", "error");
+        return;
+    }
+
+    let csv = "date,mean_ndvi\n";
+    latestTimeSeries.forEach(item => {
+        csv += `${item.date},${item.mean_ndvi}\n`;
+    });
+
+    downloadFile(csv, "ndvi_timeseries.csv", "text/csv;charset=utf-8;");
+    setStatus("CSV exporté avec succès.", "success");
+}
+
+function exportGeometryGeoJSON() {
+    if (!selectedGeometry) {
+        setStatus("Aucune zone dessinée à exporter.", "error");
+        return;
+    }
+
+    const geojson = {
+        type: "FeatureCollection",
+        features: [
+            {
+                type: "Feature",
+                properties: {},
+                geometry: selectedGeometry
+            }
+        ]
+    };
+
+    downloadFile(
+        JSON.stringify(geojson, null, 2),
+        "zone_selectionnee.geojson",
+        "application/geo+json"
+    );
+
+    setStatus("GeoJSON exporté avec succès.", "success");
+}
+
+function exportChartPNG() {
+    if (!ndviChart) {
+        setStatus("Aucun graphique à exporter.", "error");
+        return;
+    }
+
+    const canvas = document.getElementById("ndviChart");
+    const imageURL = canvas.toDataURL("image/png");
+
+    const a = document.createElement("a");
+    a.href = imageURL;
+    a.download = "ndvi_chart.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setStatus("Graphique PNG exporté avec succès.", "success");
+}
 
 document.getElementById("drawPolygonBtn").addEventListener("click", startPolygonDraw);
 document.getElementById("drawRectangleBtn").addEventListener("click", startRectangleDraw);
@@ -320,3 +395,6 @@ document.getElementById("loadChartBtn").addEventListener("click", loadNDVITimeSe
 document.getElementById("basemapSelect").addEventListener("change", function () {
     switchBasemap(this.value);
 });
+document.getElementById("exportCsvBtn").addEventListener("click", exportTimeSeriesCSV);
+document.getElementById("exportGeojsonBtn").addEventListener("click", exportGeometryGeoJSON);
+document.getElementById("exportChartBtn").addEventListener("click", exportChartPNG);
