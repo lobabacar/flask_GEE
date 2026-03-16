@@ -324,3 +324,66 @@ def get_ndvi_tile():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@main.route("/get_ndvi_timeseries", methods=["POST"])
+def get_ndvi_timeseries():
+    try:
+        init_gee()
+
+        data = request.get_json()
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        geometry_geojson = data.get("geometry")
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Plage de dates manquante"}), 400
+
+        if not geometry_geojson:
+            return jsonify({"error": "Géométrie manquante"}), 400
+
+        geometry = ee.Geometry(geometry_geojson)
+
+        collection = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(geometry)
+            .filterDate(start_date, end_date)
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 80))
+            .select(["B4", "B8"])
+            .sort("system:time_start")
+        )
+
+        count = collection.size().getInfo()
+        if count == 0:
+            return jsonify({"error": "Aucune image trouvée pour la série temporelle"}), 404
+
+        def compute_feature(img):
+            ndvi = img.normalizedDifference(["B8", "B4"]).rename("NDVI")
+            stats = ndvi.reduceRegion(
+                reducer=ee.Reducer.mean(),
+                geometry=geometry,
+                scale=10,
+                maxPixels=1e9
+            )
+            date_str = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd")
+            return ee.Feature(None, {
+                "date": date_str,
+                "mean_ndvi": stats.get("NDVI")
+            })
+
+        features = collection.map(compute_feature).filter(ee.Filter.notNull(["mean_ndvi"]))
+        result = features.getInfo()
+
+        series = []
+        for f in result["features"]:
+            props = f["properties"]
+            series.append({
+                "date": props["date"],
+                "mean_ndvi": props["mean_ndvi"]
+            })
+
+        return jsonify({
+            "count": len(series),
+            "series": series
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

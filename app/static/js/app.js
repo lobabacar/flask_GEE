@@ -1,5 +1,24 @@
-const rasterLayer = new ol.layer.Tile({
-    source: new ol.source.OSM()
+let ndviChart = null;
+
+const osmLayer = new ol.layer.Tile({
+    source: new ol.source.OSM(),
+    visible: true
+});
+
+const esriSatelliteLayer = new ol.layer.Tile({
+    source: new ol.source.XYZ({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        crossOrigin: 'anonymous'
+    }),
+    visible: false
+});
+
+const topoLayer = new ol.layer.Tile({
+    source: new ol.source.XYZ({
+        url: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
+        crossOrigin: 'anonymous'
+    }),
+    visible: false
 });
 
 const drawSource = new ol.source.Vector();
@@ -12,14 +31,14 @@ const drawLayer = new ol.layer.Vector({
             width: 2
         }),
         fill: new ol.style.Fill({
-            color: 'rgba(255, 0, 0, 0.12)'
+            color: 'rgba(255, 0, 0, 0.10)'
         })
     })
 });
 
 const map = new ol.Map({
     target: 'map',
-    layers: [rasterLayer, drawLayer],
+    layers: [osmLayer, esriSatelliteLayer, topoLayer, drawLayer],
     view: new ol.View({
         center: ol.proj.fromLonLat([-17.44, 14.69]),
         zoom: 9
@@ -29,7 +48,6 @@ const map = new ol.Map({
 let drawInteraction = null;
 let ndviLayer = null;
 let selectedGeometry = null;
-
 const geojsonFormat = new ol.format.GeoJSON();
 
 function setStatus(message, className = "muted") {
@@ -63,6 +81,11 @@ function clearDrawings() {
     if (ndviLayer) {
         map.removeLayer(ndviLayer);
         ndviLayer = null;
+    }
+
+    if (ndviChart) {
+        ndviChart.destroy();
+        ndviChart = null;
     }
 }
 
@@ -115,6 +138,12 @@ function startRectangleDraw() {
         removeDrawInteraction();
         setStatus("Rectangle sélectionné.", "success");
     });
+}
+
+function switchBasemap(value) {
+    osmLayer.setVisible(value === "osm");
+    esriSatelliteLayer.setVisible(value === "satellite");
+    topoLayer.setVisible(value === "topo");
 }
 
 async function loadNDVI() {
@@ -181,7 +210,113 @@ async function loadNDVI() {
     }
 }
 
+async function loadNDVITimeSeries() {
+    const startDate = document.getElementById("tsStartDate").value;
+    const endDate = document.getElementById("tsEndDate").value;
+
+    if (!startDate || !endDate) {
+        setStatus("Veuillez renseigner la période du graphique.", "error");
+        return;
+    }
+
+    if (!selectedGeometry) {
+        setStatus("Veuillez dessiner une zone avant de charger le graphique.", "error");
+        return;
+    }
+
+    setStatus("Chargement de la série temporelle NDVI...", "loading");
+
+    try {
+        const response = await fetch("/get_ndvi_timeseries", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                start_date: startDate,
+                end_date: endDate,
+                geometry: selectedGeometry
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            setStatus(data.error || "Erreur lors du chargement du graphique.", "error");
+            return;
+        }
+
+        const labels = data.series.map(item => item.date);
+        const values = data.series.map(item => item.mean_ndvi);
+
+        if (ndviChart) {
+            ndviChart.destroy();
+        }
+
+        const ctx = document.getElementById("ndviChart").getContext("2d");
+        ndviChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "NDVI moyen",
+                    data: values,
+                    borderWidth: 2,
+                    tension: 0.2,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "#ffffff"
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: "#ffffff",
+                            maxRotation: 45,
+                            minRotation: 45
+                        },
+                        grid: {
+                            color: "rgba(255,255,255,0.08)"
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: "#ffffff"
+                        },
+                        grid: {
+                            color: "rgba(255,255,255,0.08)"
+                        },
+                        title: {
+                            display: true,
+                            text: "NDVI",
+                            color: "#ffffff"
+                        }
+                    }
+                }
+            }
+        });
+
+        setStatus(`Graphique NDVI chargé (${data.count} dates).`, "success");
+
+    } catch (error) {
+        console.error(error);
+        setStatus("Erreur réseau ou serveur pour le graphique.", "error");
+    }
+}
+
 document.getElementById("drawPolygonBtn").addEventListener("click", startPolygonDraw);
 document.getElementById("drawRectangleBtn").addEventListener("click", startRectangleDraw);
 document.getElementById("clearBtn").addEventListener("click", clearDrawings);
 document.getElementById("showNdviBtn").addEventListener("click", loadNDVI);
+document.getElementById("loadChartBtn").addEventListener("click", loadNDVITimeSeries);
+document.getElementById("basemapSelect").addEventListener("change", function () {
+    switchBasemap(this.value);
+});
