@@ -1,66 +1,240 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <title>Dashboard GEE - OpenLayers</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
-    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+    <meta charset="UTF-8">
+    <title>NDVI - OpenLayers + Flask + GEE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css">
+
     <style>
-        #map { width: 100%; height: 500px; background: #eee; }
-        .controls { padding: 10px; background: #2c3e50; color: white; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        #toolbar {
+            height: 56px;
+            background: #24384d;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 10px;
+            box-sizing: border-box;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100% - 56px);
+        }
+
+        input, button {
+            padding: 6px 10px;
+            font-size: 14px;
+        }
+
+        #info {
+            position: absolute;
+            top: 70px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            padding: 10px;
+            border-radius: 6px;
+            min-width: 220px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        #info h4 {
+            margin: 0 0 8px 0;
+            font-size: 15px;
+        }
+
+        #info p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <input type="date" id="dateInput" value="2023-06-01">
-        <button onclick="updateNDVI()">Afficher NDVI</button>
+    <div id="toolbar">
+        <input type="date" id="datePicker" value="2023-06-21">
+        <button id="drawPolygonBtn">Dessiner polygone</button>
+        <button id="drawRectangleBtn">Dessiner rectangle</button>
+        <button id="clearBtn">Effacer zone</button>
+        <button id="showNdviBtn">Afficher NDVI</button>
     </div>
-    
+
     <div id="map"></div>
 
+    <div id="info">
+        <h4>Instructions</h4>
+        <p>1. Choisir une date</p>
+        <p>2. Dessiner une zone</p>
+        <p>3. Cliquer sur "Afficher NDVI"</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
+
     <script>
-        // 1. Initialisation de la carte OpenLayers
-        const map = new ol.Map({
-            target: 'map',
-            layers: [
-                new ol.layer.Tile({
-                    source: new ol.source.OSM() // Fond de carte
+        const rasterLayer = new ol.layer.Tile({
+            source: new ol.source.OSM()
+        });
+
+        const drawSource = new ol.source.Vector();
+
+        const drawLayer = new ol.layer.Vector({
+            source: drawSource,
+            style: new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: '#ff0000',
+                    width: 2
+                }),
+                fill: new ol.style.Fill({
+                    color: 'rgba(255, 0, 0, 0.15)'
                 })
-            ],
-            view: new ol.View({
-                center: ol.proj.fromLonLat([-17.44, 14.69]),
-                zoom: 12
             })
         });
 
-        let ndviLayer; // Garder une référence pour la supprimer
-
-        function updateNDVI() {
-            const date = document.getElementById('dateInput').value;
-
-            fetch('/get_ndvi_tile', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({date: date})
+        const map = new ol.Map({
+            target: 'map',
+            layers: [rasterLayer, drawLayer],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([-17.44, 14.69]),
+                zoom: 9
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.tile_url) {
-                    // Supprimer l'ancienne couche si elle existe
-                    if (ndviLayer) map.removeLayer(ndviLayer);
+        });
 
-                    // 2. Ajouter la couche GEE comme source XYZ
-                    ndviLayer = new ol.layer.Tile({
-                        source: new ol.source.XYZ({
-                            url: data.tile_url
-                        }),
-                        opacity: 0.7
-                    });
-                    map.addLayer(ndviLayer);
-                }
-            })
-            .catch(err => alert("Erreur lors de la récupération du NDVI"));
+        let drawInteraction = null;
+        let ndviLayer = null;
+        let selectedGeometry = null;
+
+        const geojsonFormat = new ol.format.GeoJSON();
+
+        function removeDrawInteraction() {
+            if (drawInteraction) {
+                map.removeInteraction(drawInteraction);
+                drawInteraction = null;
+            }
         }
+
+        function clearDrawings() {
+            drawSource.clear();
+            selectedGeometry = null;
+
+            if (ndviLayer) {
+                map.removeLayer(ndviLayer);
+                ndviLayer = null;
+            }
+        }
+
+        function startPolygonDraw() {
+            clearDrawings();
+            removeDrawInteraction();
+
+            drawInteraction = new ol.interaction.Draw({
+                source: drawSource,
+                type: 'Polygon'
+            });
+
+            map.addInteraction(drawInteraction);
+
+            drawInteraction.on('drawend', function (evt) {
+                drawSource.clear();
+                drawSource.addFeature(evt.feature);
+
+                const geom4326 = evt.feature.getGeometry().clone().transform('EPSG:3857', 'EPSG:4326');
+                selectedGeometry = geojsonFormat.writeGeometryObject(geom4326);
+
+                removeDrawInteraction();
+                console.log("Géométrie polygone :", selectedGeometry);
+            });
+        }
+
+        function startRectangleDraw() {
+            clearDrawings();
+            removeDrawInteraction();
+
+            drawInteraction = new ol.interaction.Draw({
+                source: drawSource,
+                type: 'Circle',
+                geometryFunction: ol.interaction.Draw.createBox()
+            });
+
+            map.addInteraction(drawInteraction);
+
+            drawInteraction.on('drawend', function (evt) {
+                drawSource.clear();
+                drawSource.addFeature(evt.feature);
+
+                const geom4326 = evt.feature.getGeometry().clone().transform('EPSG:3857', 'EPSG:4326');
+                selectedGeometry = geojsonFormat.writeGeometryObject(geom4326);
+
+                removeDrawInteraction();
+                console.log("Géométrie rectangle :", selectedGeometry);
+            });
+        }
+
+        async function loadNDVI() {
+            const date = document.getElementById("datePicker").value;
+
+            if (!date) {
+                alert("Veuillez choisir une date.");
+                return;
+            }
+
+            if (!selectedGeometry) {
+                alert("Veuillez dessiner une zone sur la carte.");
+                return;
+            }
+
+            try {
+                const response = await fetch("/get_ndvi_tile", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        date: date,
+                        geometry: selectedGeometry
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    alert(data.error || "Erreur lors de la récupération du NDVI.");
+                    return;
+                }
+
+                if (ndviLayer) {
+                    map.removeLayer(ndviLayer);
+                }
+
+                ndviLayer = new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        url: data.tile_url,
+                        crossOrigin: 'anonymous'
+                    }),
+                    opacity: 0.7
+                });
+
+                map.addLayer(ndviLayer);
+
+            } catch (error) {
+                console.error(error);
+                alert("Erreur réseau ou serveur.");
+            }
+        }
+
+        document.getElementById("drawPolygonBtn").addEventListener("click", startPolygonDraw);
+        document.getElementById("drawRectangleBtn").addEventListener("click", startRectangleDraw);
+        document.getElementById("clearBtn").addEventListener("click", clearDrawings);
+        document.getElementById("showNdviBtn").addEventListener("click", loadNDVI);
     </script>
 </body>
 </html>

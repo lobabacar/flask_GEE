@@ -102,6 +102,96 @@ def index():
 
 #     except Exception as e:
 #         return jsonify({"error": str(e)}), 500
+# @main.route("/get_ndvi_tile", methods=["POST"])
+# def get_ndvi_tile():
+#     try:
+#         init_gee()
+
+#         data = request.get_json()
+#         selected_date = data.get("date")
+
+#         if not selected_date:
+#             return jsonify({"error": "Date manquante"}), 400
+
+#         start_date = datetime.strptime(selected_date, "%Y-%m-%d")
+#         end_date = start_date + timedelta(days=1)
+
+#         point = ee.Geometry.Point([-17.44, 14.69])
+
+#         collection = (
+#             ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+#             .filterBounds(point)
+#             .filterDate(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+#             .sort("CLOUDY_PIXEL_PERCENTAGE")
+#         )
+
+#         count = collection.size().getInfo()
+#         if count == 0:
+#             return jsonify({"error": "Aucune image trouvée pour cette date"}), 404
+
+#         image = collection.first()
+#         ndvi = ee.Image(image).normalizedDifference(["B8", "B4"]).rename("NDVI")
+
+#         map_id = ndvi.getMapId({
+#             "min": 0,
+#             "max": 1,
+#             "palette": ["blue", "white", "green"]
+#         })
+
+#         return jsonify({
+#             "tile_url": map_id["tile_fetcher"].url_format
+#         })
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+# @main.route("/get_ndvi_tile", methods=["POST"])
+# def get_ndvi_tile():
+#     try:
+#         init_gee()
+
+#         data = request.get_json()
+#         selected_date = data.get("date")
+#         geometry_geojson = data.get("geometry")
+
+#         if not selected_date:
+#             return jsonify({"error": "Date manquante"}), 400
+
+#         if not geometry_geojson:
+#             return jsonify({"error": "Géométrie manquante"}), 400
+
+#         start_date = datetime.strptime(selected_date, "%Y-%m-%d")
+#         end_date = start_date + timedelta(days=1)
+
+#         geometry = ee.Geometry(geometry_geojson)
+
+#         collection = (
+#             ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+#             .filterBounds(geometry)
+#             .filterDate(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+#             .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
+#             .sort("CLOUDY_PIXEL_PERCENTAGE")
+#         )
+
+#         count = collection.size().getInfo()
+#         if count == 0:
+#             return jsonify({"error": "Aucune image trouvée pour cette date et cette zone"}), 404
+
+#         image = collection.median()
+
+#         ndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI").clip(geometry)
+
+#         map_id = ndvi.getMapId({
+#             "min": -0.2,
+#             "max": 0.8,
+#             "palette": ["blue", "white", "yellow", "green", "darkgreen"]
+#         })
+
+#         return jsonify({
+#             "tile_url": map_id["tile_fetcher"].url_format
+#         })
+
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 @main.route("/get_ndvi_tile", methods=["POST"])
 def get_ndvi_tile():
     try:
@@ -109,33 +199,46 @@ def get_ndvi_tile():
 
         data = request.get_json()
         selected_date = data.get("date")
+        geometry_geojson = data.get("geometry")
 
         if not selected_date:
             return jsonify({"error": "Date manquante"}), 400
 
+        if not geometry_geojson:
+            return jsonify({"error": "Géométrie manquante"}), 400
+
         start_date = datetime.strptime(selected_date, "%Y-%m-%d")
         end_date = start_date + timedelta(days=1)
 
-        point = ee.Geometry.Point([-17.44, 14.69])
+        geometry = ee.Geometry(geometry_geojson)
 
         collection = (
             ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-            .filterBounds(point)
-            .filterDate(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            .filterBounds(geometry)
+            .filterDate(
+                start_date.strftime("%Y-%m-%d"),
+                end_date.strftime("%Y-%m-%d")
+            )
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
             .sort("CLOUDY_PIXEL_PERCENTAGE")
         )
 
         count = collection.size().getInfo()
         if count == 0:
-            return jsonify({"error": "Aucune image trouvée pour cette date"}), 404
+            return jsonify({"error": "Aucune image trouvée pour cette date et cette zone"}), 404
 
-        image = collection.first()
-        ndvi = ee.Image(image).normalizedDifference(["B8", "B4"]).rename("NDVI")
+        image = collection.median()
+
+        ndvi = (
+            image.normalizedDifference(["B8", "B4"])
+            .rename("NDVI")
+            .clip(geometry)
+        )
 
         map_id = ndvi.getMapId({
-            "min": 0,
-            "max": 1,
-            "palette": ["blue", "white", "green"]
+            "min": -0.2,
+            "max": 0.8,
+            "palette": ["blue", "white", "yellow", "green", "darkgreen"]
         })
 
         return jsonify({
