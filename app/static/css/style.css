@@ -10,10 +10,12 @@ html, body {
     height: 100%;
 }
 
+/* Sidebar avec scroll indépendant si le contenu dépasse */
 #sidebar {
     background: #0f172a;
     color: white;
-    min-height: 100vh;
+    height: 100vh;
+    overflow-y: auto; 
 }
 
 #sidebar h2,
@@ -49,46 +51,51 @@ html, body {
     height: 100vh;
 }
 
+/* Positionne la légende en bas à droite de la carte */
 #legend {
     position: absolute;
     bottom: 20px;
-    left: 20px;
-    background: rgba(255,255,255,0.95);
+    right: 20px; /* À droite pour ne pas toucher la sidebar */
+    background: rgba(255, 255, 255, 0.9);
     padding: 12px;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     font-size: 13px;
     z-index: 1000;
+    min-width: 160px;
+    border: 1px solid #ddd;
 }
 
-#legend h4 {
-    margin: 0 0 8px 0;
+#legend h6 {
     color: #111827;
+    margin-bottom: 8px;
+    font-weight: bold;
 }
 
 #legend div {
     display: flex;
     align-items: center;
-    margin-bottom: 5px;
-    color: #111827;
+    margin-bottom: 4px;
+    color: #333;
 }
 
-#legend span {
-    width: 20px;
-    height: 12px;
-    margin-right: 8px;
-    display: inline-block;
-    border: 1px solid #ccc;
-}
-
-/* On enlève l'espace inutile sous le graphique */
+/* Fix pour le débordement du graphique */
 .chart-wrapper {
     position: relative;
     width: 100%;
-    height: 220px;
-    margin-bottom: 0;
-    padding-bottom: 0;
+    height: 250px; /* On augmente un peu la hauteur pour laisser respirer les axes */
+    margin-top: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 5px;
 }
+
+/* Empêche Chart.js de forcer une taille géante */
+#ndviChart {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 
 .loading {
     color: #facc15 !important;
