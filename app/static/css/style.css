@@ -49,20 +49,19 @@ html, body {
     height: 100vh;
 }
 
-/* Légende déplacée plus bas pour ne pas coller aux écritures */
 #legend {
     position: absolute;
-    top: 300px;
+    bottom: 20px;
     left: 20px;
     background: rgba(255,255,255,0.95);
     padding: 12px;
     border-radius: 8px;
-    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     font-size: 13px;
-    max-width: 230px;
+    z-index: 1000;
 }
 
-#legend h6 {
+#legend h4 {
     margin: 0 0 8px 0;
     color: #111827;
 }
@@ -75,7 +74,7 @@ html, body {
 }
 
 #legend span {
-    width: 18px;
+    width: 20px;
     height: 12px;
     margin-right: 8px;
     display: inline-block;
