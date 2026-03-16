@@ -207,8 +207,11 @@ def get_ndvi_tile():
         if not geometry_geojson:
             return jsonify({"error": "Géométrie manquante"}), 400
 
-        start_date = datetime.strptime(selected_date, "%Y-%m-%d")
-        end_date = start_date + timedelta(days=1)
+        target_date = datetime.strptime(selected_date, "%Y-%m-%d")
+
+        # Fenêtre temporelle plus robuste
+        start_date = target_date - timedelta(days=7)
+        end_date = target_date + timedelta(days=7)
 
         geometry = ee.Geometry(geometry_geojson)
 
@@ -219,21 +222,19 @@ def get_ndvi_tile():
                 start_date.strftime("%Y-%m-%d"),
                 end_date.strftime("%Y-%m-%d")
             )
-            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 20))
-            .sort("CLOUDY_PIXEL_PERCENTAGE")
+            .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 80))
+            .select(["B4", "B8"])
         )
 
         count = collection.size().getInfo()
         if count == 0:
-            return jsonify({"error": "Aucune image trouvée pour cette date et cette zone"}), 404
+            return jsonify({
+                "error": f"Aucune image trouvée entre {start_date.strftime('%Y-%m-%d')} et {end_date.strftime('%Y-%m-%d')} pour cette zone."
+            }), 404
 
         image = collection.median()
 
-        ndvi = (
-            image.normalizedDifference(["B8", "B4"])
-            .rename("NDVI")
-            .clip(geometry)
-        )
+        ndvi = image.normalizedDifference(["B8", "B4"]).rename("NDVI").clip(geometry)
 
         map_id = ndvi.getMapId({
             "min": -0.2,
@@ -242,7 +243,10 @@ def get_ndvi_tile():
         })
 
         return jsonify({
-            "tile_url": map_id["tile_fetcher"].url_format
+            "tile_url": map_id["tile_fetcher"].url_format,
+            "images_found": count,
+            "start_date_used": start_date.strftime("%Y-%m-%d"),
+            "end_date_used": end_date.strftime("%Y-%m-%d")
         })
 
     except Exception as e:
